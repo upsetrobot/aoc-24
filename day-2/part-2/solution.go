@@ -76,10 +76,8 @@ func main() {
         if tmp[1] < tmpNum {
             dir = 0
 
-        } else if tmp[1] == tmpNum {
-            continue
-        }
-        
+        }         
+
         flag := 1
 
         for _, val := range tmp[1:] {
@@ -112,9 +110,7 @@ func main() {
                     if copyTmp[1] < tmpNum {
                         dir = 0
 
-                    } else if copyTmp[1] == tmpNum {
-                        continue
-                    }
+                    } 
 
                     for _, val3 := range copyTmp[1:] {
                         if !(dir == 1 && val3 > tmpNum && (val3 - tmpNum) >= 1 && (val3 - tmpNum) <= 3) && 
