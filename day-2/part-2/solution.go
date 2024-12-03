@@ -3,8 +3,8 @@
  * Advent of Code 2024 - Day 2 Part 2 
  *
  * In this one, we have to analyze a set of numbers and determine if they 
- * meet criteria. Part 2 is made complex by adding an extra condition - a 
- * condition failure can happen once.
+ * meet criteria. This one is much more complicated by allowing removal of 
+ * one number.
  * 
  * file:        solution.go
  * brief:       Solution for Advent of Code challenge in GoLang.
@@ -79,33 +79,78 @@ func main() {
         } else if tmp[1] == tmpNum {
             continue
         }
-
+        
         flag := 1
-        count := 0
 
-        for i := range tmp {
-            if i == 0 {
-                continue
-            }
-            if !(dir == 1 && tmp[i] > tmpNum && (tmp[i] - tmpNum) >= 1 && (tmp[i] - tmpNum) <= 3) && 
-                !(dir == 0 && tmp[i] < tmpNum && (tmpNum - tmp[i]) >= 1 && (tmpNum - tmp[i]) <= 3) {
-                count += 1
+        for _, val := range tmp[1:] {
 
-                if count > 1 {
+            // Unsafe?
+            if !(dir == 1 && val > tmpNum && (val - tmpNum) >= 1 && (val - tmpNum) <= 3) && 
+                !(dir == 0 && val < tmpNum && (tmpNum - val) >= 1 && (tmpNum - val) <= 3) {
+
+                // Now go through each list and test each with a removed element.
+                flag2 := 1
+
+                for i := range tmp {
+
+                    // Copy list and remove element.
+                    var copyTmp []int
+
+                    for j, val2 := range tmp {
+                        if j == i {
+                            continue
+                        }
+
+                        copyTmp = append(copyTmp, val2)
+                    }
+
+                    // Now test list.
+                    tmpNum := copyTmp[0]
+                    dir = 1
+                    flag2 = 1
+
+                    if copyTmp[1] < tmpNum {
+                        dir = 0
+
+                    } else if copyTmp[1] == tmpNum {
+                        continue
+                    }
+
+                    for _, val3 := range copyTmp[1:] {
+                        if !(dir == 1 && val3 > tmpNum && (val3 - tmpNum) >= 1 && (val3 - tmpNum) <= 3) && 
+                            !(dir == 0 && val3 < tmpNum && (tmpNum - val3) >= 1 && (tmpNum - val3) <= 3) {
+                            flag2 = 0;
+                            break;
+                        }
+
+                        tmpNum = val3
+                    }
+
+                    // Safe?
+                    if flag2 == 1 {
+                        break
+                    }
+
+                } // End for.
+
+                if flag2 != 1 {
                     flag = 0
-                    break
                 }
 
-            } else {
-                tmpNum = tmp[i]
-            }
-        }
+                break
+
+            } // End if.
+            
+            tmpNum = val
+
+        } // End for.
 
         solution += flag
-    }
+
+    } // End for.
 
     // Print solution.
-    fmt.Println("Day 2 Part 1")
+    fmt.Println("Day 2 Part 2")
     fmt.Println("Filename:", fileName)
     fmt.Println()
     fmt.Println("Solution:", solution)
