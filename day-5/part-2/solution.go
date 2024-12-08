@@ -1,18 +1,20 @@
 /**
  ******************************************************************************
- * Advent of Code 2024 - Day 4 Part 2 
+ * Advent of Code 2024 - Day 5 Part 2
  *
- * This is a word search, but this time, two words are required to be crossing.
- * This makes the challenge quite a bit more difficult. I think i will consider 
- * approaching this the same way as before but perhaps only looking right, so 
- * that I can avoid double-counting.
- * 
+ * This one gives rules which you have check each pair for. I am not sure the
+ * best way. I feel like a function would help, then iterate each list and
+ * run the check. The function would need the rule state which is parsed
+ * before the checks.
+ *
+ * This part wants us to reorder the incorrect lists. Ugh.
+ *
  * file:        solution.go
  * brief:       Solution for Advent of Code challenge in GoLang.
  * author:      upsetrobot
- * date:        07 Dec 2024
+ * date:        08 Dec 2024
  * copyright:   2024. All rights reserved.
- * 
+ *
  ******************************************************************************
  */
 
@@ -22,12 +24,14 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 )
 
 
 /**
- * Main function that finds solution to Advent of Code problem using the 
+ * Main function that finds solution to Advent of Code problem using the
  * data from the given input file.
  */
 func main() {
@@ -46,37 +50,118 @@ func main() {
         log.Fatal("Failed to open file:", err)
     }
 
+    // Divide the input into two lists.
+    lines := strings.Split(string(file), "\n")
+    var ruleList [][]int
+    var pagesList [][]int
+
+    for _, line := range lines {
+        if line == "" {
+            continue
+        }
+
+        // Check for comma I guess.
+        if !strings.ContainsRune(line, ',') {
+
+            // Get two numbers.
+            nums := strings.Split(line, "|")
+
+            num1, err := strconv.Atoi(nums[0])
+            if err != nil {
+                log.Fatal("String conversion failed:", err)
+            }
+
+            num2, err := strconv.Atoi(nums[1])
+            if err != nil {
+                log.Fatal("String conversion failed:", err)
+            }
+
+            ints := [] int {num1, num2}
+
+            ruleList = append(ruleList, ints)
+
+        } else {
+            // Get two numbers.
+            nums := strings.Split(line, ",")
+            var ints []int
+
+            for _, val := range nums {
+                if val == "" {
+                    continue
+                }
+
+                num, err := strconv.Atoi(val)
+                if err != nil {
+                    log.Fatal("String conversion failed:", err)
+                }
+
+                ints = append(ints, num)
+            }
+            pagesList = append(pagesList, ints)
+
+        } // End if.
+
+    } // End for.
+
     // Calculate solution.
     solution := 0
-    lines := strings.Split(string(file), "\n")
 
-    for i, line := range lines {
+    // Now check each list.
+    for _, pages := range pagesList {
+        flag := true
 
-        for j, chr := range line {
-
-            // I want to check diagonal down right and down diagonal up right for all 'M's and 'S's.
-            if chr != 'M' && chr != 'S' {
-                continue
-            }
-
-            if j > len(line) - 3 || i >= len(lines) - 3 {
-                continue
-            }
-
-            // Make strings.
-            str1 := string(chr) + string(lines[i + 1][j + 1]) + string(lines[i + 2][j + 2])
-            str2 := string(lines[i + 2][j]) + string(lines[i + 1][j + 1]) + string(lines[i][j + 2])
+        for j, page := range pages {
             
-            if (str1 == "MAS" || str1 == "SAM") && (str2 == "MAS" || str2 == "SAM") {
-                solution += 1
+            // Look up if value is in left side. If true, find out if second value is in rest.
+            for _, rule := range ruleList {
+                if page == rule[0] {
+
+                    for _, val := range pages[:j] {
+                        if val == rule[1] {
+                            flag = false
+                            break
+                        }
+                    }
+
+                    if !flag {
+                        break
+                    }
+
+                } // End if.
+
+            } // End for.
+
+            if !flag {
+                break
             }
 
         } // End for.
 
+        // Check for incorrect list.
+        if !flag {
+
+
+            // Here, we have to identify if i goes before j.
+            // Not sure if this will work, but I think it might.
+            // It will put the ones not on the list on the right I think.
+            // Trying a lambda.
+            sort.Slice(pages, func(i, j int) bool {
+                for _, pair := range ruleList {
+                    if pages[i] == pair[0] && pages[j] == pair[1] {
+                        return true
+                    }
+                }
+
+                return false
+            })
+
+            solution += pages[len(pages) / 2]
+        }
+
     } // End for.
 
     // Print solution.
-    fmt.Println("Day 4 Part 2")
+    fmt.Println("Day 5 Part 2")
     fmt.Println("Filename:", fileName)
     fmt.Println()
     fmt.Println("Solution:", solution)

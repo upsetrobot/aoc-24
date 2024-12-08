@@ -1,15 +1,18 @@
 /**
  ******************************************************************************
- * Advent of Code 2024 - Day 5 Part 1 
+ * Advent of Code 2024 - Day 5 Part 1
  *
- * blblbl
- * 
+ * This one gives rules which you have check each pair for. I am not sure the
+ * best way. I feel like a function would help, then iterate each list and
+ * run the check. The function would need the rule state which is parsed
+ * before the checks.
+ *
  * file:        solution.go
  * brief:       Solution for Advent of Code challenge in GoLang.
  * author:      upsetrobot
- * date:        07 Dec 2024
+ * date:        08 Dec 2024
  * copyright:   2024. All rights reserved.
- * 
+ *
  ******************************************************************************
  */
 
@@ -19,12 +22,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
-
 /**
- * Main function that finds solution to Advent of Code problem using the 
+ * Main function that finds solution to Advent of Code problem using the
  * data from the given input file.
  */
 func main() {
@@ -43,110 +46,96 @@ func main() {
         log.Fatal("Failed to open file:", err)
     }
 
+    // Divide the input into two lists.
+    lines := strings.Split(string(file), "\n")
+    var ruleList [][]int
+    var pagesList [][]int
+
+    for _, line := range lines {
+        if line == "" {
+            continue
+        }
+
+        // Check for comma I guess.
+        if !strings.ContainsRune(line, ',') {
+
+            // Get two numbers.
+            nums := strings.Split(line, "|")
+
+            num1, err := strconv.Atoi(nums[0])
+            if err != nil {
+                log.Fatal("String conversion failed:", err)
+            }
+
+            num2, err := strconv.Atoi(nums[1])
+            if err != nil {
+                log.Fatal("String conversion failed:", err)
+            }
+
+            ints := [] int {num1, num2}
+
+            ruleList = append(ruleList, ints)
+
+        } else {
+            // Get two numbers.
+            nums := strings.Split(line, ",")
+            var ints []int
+
+            for _, val := range nums {
+                if val == "" {
+                    continue
+                }
+
+                num, err := strconv.Atoi(val)
+                if err != nil {
+                    log.Fatal("String conversion failed:", err)
+                }
+
+                ints = append(ints, num)
+            }
+            pagesList = append(pagesList, ints)
+
+        } // End if.
+
+    } // End for.
+
     // Calculate solution.
     solution := 0
-    lines := strings.Split(string(file), "\n")
 
-    for i, line := range lines {
+    // Now check each list.
+    for _, pages := range pagesList {
+        flag := true
 
-        for j, chr := range line {
+        for j, page := range pages {
+            
+            // Look up if value is in left side. If true, find out if second value is in rest.
+            for _, rule := range ruleList {
+                if page == rule[0] {
 
-            // Elimination method will not work. Maybe try starting at each 
-            // 'X' and just counting strings that match.
-            if chr != 'X' {
-                continue
-            }
+                    for _, val := range pages[:j] {
+                        if val == rule[1] {
+                            flag = false
+                            break
+                        }
+                    }
 
-            left := "X"
-            down := "X"
-            up := "X"
-            right := "X"
-            leftUp := "X"
-            rightUp := "X"
-            leftDown := "X"
-            rightDown := "X"
+                    if !flag {
+                        break
+                    }
 
-            // Test each direction.
-            if j >= 3 {
-                left += string(line[j - 1])
-                left += string(line[j - 2])
-                left += string(line[j - 3])
-            }
+                } // End if.
 
-            if i < len(lines) - 4 {
-                down += string(lines[i + 1][j])
-                down += string(lines[i + 2][j])
-                down += string(lines[i + 3][j])
-                
-                if j >= 3 {
-                    leftDown += string(lines[i + 1][j - 1])
-                    leftDown += string(lines[i + 2][j - 2])
-                    leftDown += string(lines[i + 3][j - 3])
-                }
+            } // End for.
 
-                if j <= len(line) - 4 {
-                    rightDown += string(lines[i + 1][j + 1])
-                    rightDown += string(lines[i + 2][j + 2])
-                    rightDown += string(lines[i + 3][j + 3])
-                }
-            }
-
-            if i >= 3 {
-                up += string(lines[i - 1][j])
-                up += string(lines[i - 2][j])
-                up += string(lines[i - 3][j])
-                
-                if j >= 3 {
-                    leftUp += string(lines[i - 1][j - 1])
-                    leftUp += string(lines[i - 2][j - 2])
-                    leftUp += string(lines[i - 3][j - 3])
-                }
-
-                if j <= len(line) - 4 {
-                    rightUp += string(lines[i - 1][j + 1])
-                    rightUp += string(lines[i - 2][j + 2])
-                    rightUp += string(lines[i - 3][j + 3])
-                }
-            }
-
-            if j <= len(line) - 4 {
-                right = line[j:j + 4]
-            }
-
-            // Count XMAS.
-            if left == "XMAS" {
-                solution += 1
-            }
-
-            if down == "XMAS" {
-                solution += 1
-            }
-
-            if up == "XMAS" {
-                solution += 1
-            }
-
-            if right == "XMAS" {
-                solution += 1
-            }
-
-            if leftDown == "XMAS" {
-                solution += 1
-            }
-
-            if leftUp == "XMAS" {
-                solution += 1
-            }
-
-            if rightDown == "XMAS" {
-                solution += 1
-            }
-
-            if rightUp == "XMAS" {
-                solution += 1
+            if !flag {
+                break
             }
 
         } // End for.
+
+        if flag {
+            solution += pages[len(pages) / 2]
+        }
 
     } // End for.
 
