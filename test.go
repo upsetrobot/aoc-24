@@ -5,8 +5,24 @@ import (
 )
 
 func main () {
-    arr := [...]int{1, 33, 4, 234, 4}
+    str := [] string{"HELLOZ", "abc"}
+    var bstr [][] byte
 
-    fmt.Println(arr[1:4])
+    for _, line := range str {
+        bstr = append(bstr, [] byte(line))
+    }
+
+    fmt.Println(str)
+    fmt.Println(bstr)
+
+    for i, line := range bstr {
+        for j, chr := range line {
+            bstr[i][j] = 'h'
+            fmt.Println(chr)
+        }
+    }
+
+    fmt.Println(str)
+    fmt.Println(bstr)
 
 }
