@@ -68,7 +68,6 @@ func main() {
     }
 
     // Process file.
-    // Process file.
     strLines := strings.Split(string(file), "\n")
     strLines = strLines[:len(strLines) - 1]
     var bytesLines [][] byte
