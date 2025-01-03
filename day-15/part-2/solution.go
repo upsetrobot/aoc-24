@@ -160,7 +160,7 @@ func main() {
     //    fmt.Print("\n")
     //}
 
-    fmt.Print("\n")
+    //fmt.Print("\n")
 
     // Process moves.
     // Probably should have put all positions in a list, but oh well.
