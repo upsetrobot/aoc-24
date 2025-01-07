@@ -1,0 +1,468 @@
+/**
+ ******************************************************************************
+ * Advent of Code 2024 - Day 16 Part 1
+ *
+ * This one is kind of obvious I think. It is about solving a maze. The obvious
+ * solution is to do a recursive naive algorithm to try all paths and find the
+ * minimal. I imagine in part 2, this is going to become nearly impossible with
+ * the number of possibilities. The way to handle it is find ways to eliminate
+ * options. Its hard for me to think of any alternatives. There could be some
+ * kind of mapping algorithm that would allow you to calculate a solution or to
+ * remove options. But I think I am just gonna do the recursive algorithm.
+ *
+ * My solution worked for the example. I added an optimization before trying it 
+ * on the main input, but it was still slow (> 10 minutes). I need more
+ * optimization... One opportunity is to mark dead end pathways... how do I do
+ * that.
+ *
+ * Okay, its harder than I thought. I added an optimization for deadends (which
+ * only fills them in one at a time which may be an area for improvement). But
+ * it is still taking too long. Obviously, we are supposed to use memoization 
+ * to remember if I was here before, what was my score from here to the end and
+ * use that instead - duh. Okay... I will add a table... Let's do that. I just
+ * figured that it would not be needed in a part 1.
+ *
+ * Wow, this is definitely giving more trouble that it should. I added memos, 
+ * but I had a hard time getting them to work for scores that lead to the end. 
+ * So, I decided to just use them for bad ends (which ended up solving the 
+ * other optimization I was trying with not going down a dead end more than 
+ * once), but it was still slow. Then, I readded my stay-below-the-lowest-
+ * score-seen-so-far optimization which reduced (between both optimizations) 
+ * the example from ~2500 iterations to ~700. But this is still too slow! I am 
+ * going to figure out how to extend the memos to positive values to the end.
+ *
+ * It's working for all the examples (down to ~170) which is great, but it
+ * still fails on the actual input. I don't know what I'm messing up.
+ *
+ * My solutions vary on the order of directions I choose to explore... I 
+ * vaguely remember something like this last year. Anyway, changing the order 
+ * around a couple times got it done. LDUR failed me. RUDL worked.
+ *
+ * file:        solution_old1.go
+ * brief:       Solution for Advent of Code challenge in GoLang.
+ * author:      upsetrobot
+ * date:        04 Jan 2025
+ * copyright:   2025. All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+package main
+
+// Imports.
+
+import (
+	//"bufio"
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"strings"
+)
+
+// Types.
+
+type Dir int
+
+// LDUR!
+const (
+    Left    Dir = iota + 1
+    Down
+    Up
+    Right
+)
+
+type Pos struct {
+    x int
+    y int
+    d Dir
+    score int
+    end bool
+    lowestScore int
+}
+
+type Memo struct {
+    x int
+    y int
+    d Dir
+    s int
+}
+
+
+// Constants.
+// None.
+
+
+// Variables.
+var count = 0
+
+
+/**
+ * Main function that finds solution to Advent of Code problem using the
+ * data from the given input file.
+ */
+func main() {
+
+    // Get filename.
+    if len(os.Args) < 2 {
+        fmt.Println("Add filename as argument")
+        return
+    }
+
+    // Get filename.
+    fileName := os.Args[1]
+
+    file, err := os.ReadFile(fileName)
+    if err != nil {
+        log.Fatal("Failed to open file:", err)
+    }
+
+    // Process file.
+    strLines := strings.Split(string(file), "\n")
+    strLines = strLines[:len(strLines) - 1]
+    solution := 0
+    start := Pos{}
+    
+    // Find start and end.
+    for i, line := range strLines {
+        for j, pos := range line {
+            if pos == 'S' {
+                start.x = j
+                start.y = i
+                start.d = Right
+                start.score = 0
+                start.end = false
+                start.lowestScore = 150000
+            }
+        }
+    }
+
+    var maze [][] byte
+
+    for _, line := range strLines {
+        maze = append(maze, []byte(line))
+    }
+
+    // Add memo.
+
+    memo := [] Memo{}
+
+    // Find solution.
+    // Start facing east and end facing any direction.
+    solution = recurseSolveMaze(start, maze, &memo)
+
+    // Print solution.
+    fmt.Println("Day 16 Part ")
+    fmt.Println("Filename:", fileName)
+    fmt.Println()
+    fmt.Println("Solution:", solution)
+    fmt.Println("Count:", count)
+    fmt.Println()
+
+} // End main.
+
+
+/**
+ * Function to count maze path.
+ *
+ * @param   pos     Current x, y position in maze.
+ * @param   maze    Reference to the character maze.
+ * @return  int     Score or max int if not.
+ */
+func recurseSolveMaze(pos Pos, maze [][] byte, memo *[] Memo) int {
+
+    count++
+
+    // My solution and optimization worked. But is it enough...
+    //// Print maze.
+    //for _, line := range maze {
+    //    fmt.Println(string(line))
+    //}
+
+    //fmt.Println()
+    //fmt.Printf("Current score: %d\n", pos.score)
+    //fmt.Printf("Lowest score: %d\n", pos.lowestScore)
+    //fmt.Print("Memo: ")
+    //fmt.Println(memo)
+    //fmt.Printf("Current count: %d\n", count)
+    //fmt.Println()
+    //fmt.Print("Press enter...")
+    //fmt.Println()
+
+    //// Define reader.
+    //reader := bufio.NewReader(os.Stdin)
+
+    //// Wait for key press
+    //_, err := reader.ReadString('\n')
+    //if err != nil {
+    //    log.Fatal("Read error.")
+    //}
+
+    // Check memo.
+    for _, m := range *memo {
+        if m.x == pos.x && m.y == pos.y && m.d == pos.d {
+            //fmt.Println("FOUND!!!!!")
+
+            // Checked all directions, reset marker.
+            maze[pos.y][pos.x] = '.'
+
+            return pos.score + m.s
+        }
+    }
+
+    // A couple complications. We need to prevent endless loops of spinning in 
+    // circles (on one position or around a block).
+    // For the second, we can maintain a list of previous positions or mark and
+    // unmark positions.
+    // For the first problem, we can just account for turns during the move.
+
+    moveUp := move(pos, Up, maze)
+
+    if !moveUp.end && moveUp.score > 0 {
+        if moveUp.score < pos.lowestScore {
+            moveUp.score = recurseSolveMaze(moveUp, maze, memo)
+
+        } else {
+            maze[moveUp.y][moveUp.x] = '.'
+        }
+    }
+
+    if moveUp.score > 0 && moveUp.score < pos.lowestScore {
+        pos.lowestScore = moveUp.score
+    }
+
+
+    moveRight := move(pos, Right, maze)
+
+    if !moveRight.end && moveRight.score > 0 {
+        if moveRight.score < pos.lowestScore {
+            moveRight.score = recurseSolveMaze(moveRight, maze, memo)
+
+        } else {
+            maze[moveRight.y][moveRight.x] = '.'
+        }
+    }
+
+    if moveRight.score > 0 && moveRight.score < pos.lowestScore {
+        pos.lowestScore = moveRight.score
+    }
+
+
+    moveDown := move(pos, Down, maze)
+
+    if !moveDown.end && moveDown.score > 0 {
+        if moveDown.score < pos.lowestScore {
+            moveDown.score = recurseSolveMaze(moveDown, maze, memo)
+
+        } else {
+            maze[moveDown.y][moveDown.x] = '.'
+        }
+    }
+
+    if moveDown.score > 0 && moveDown.score < pos.lowestScore {
+        pos.lowestScore = moveDown.score
+    }
+
+
+    moveLeft := move(pos, Left, maze)
+
+    if !moveLeft.end && moveLeft.score > 0 {
+        if moveLeft.score < pos.lowestScore {
+            moveLeft.score = recurseSolveMaze(moveLeft, maze, memo)
+
+        // Correct missing x.
+        } else {
+            maze[moveLeft.y][moveLeft.x] = '.'
+        }
+    }
+
+    // Optimization to reduce unnecessary branches.
+    // Not needed for this one, but anticipatory... but it was needed in fact.
+    if moveLeft.score > 0 && moveLeft.score < pos.lowestScore {
+        pos.lowestScore = moveLeft.score
+    }
+
+
+    list := [] int {
+        moveLeft.score,
+        moveDown.score,
+        moveUp.score,
+        moveRight.score,
+    }
+
+    min := math.MaxInt32 
+
+    for _, i := range list {
+        if i > 0 && i < min {
+            min = i
+        }
+    }
+
+    // Check for dead end branch optimization.
+    // Need to disregard direction I came from.
+    //test := -2
+
+    //for i, v := range list {
+    //    switch pos.d {
+    //        case Left:
+    //            if i == 3 {
+    //                continue
+    //            }
+    //            break
+
+    //        case Down:
+    //            if i == 2 {
+    //                continue
+    //            }
+    //            break
+
+    //        case Up:
+    //            if i == 1 {
+    //                continue
+    //            }
+    //            break
+
+    //        case Right:
+    //            if i == 0 {
+    //                continue
+    //            }
+    //            break
+
+    //        default:
+    //            log.Fatal("Direction error.")
+    //    }
+
+    //    if v > -2 {
+    //        test = v
+    //    }
+    //}
+
+    //if test == -2 {
+    //    maze[pos.y][pos.x] = '#'
+    //    
+    //} else {
+
+    //    // Checked all directions, reset marker.
+    //    maze[pos.y][pos.x] = '.'
+    //}
+
+    // Okay, screw the optimizations.
+    // Okay, we will add memoization here.
+    // Got crazy here cuz I was using references instead of pointers.
+    // Probably only need one append.
+    //if moveLeft.score < 0 {
+    //    *memo = append(*memo, Memo{moveLeft.x, moveLeft.y, moveLeft.d, moveLeft.score})
+
+    //} else {
+    //    *memo = append(*memo, Memo{moveLeft.x, moveLeft.y, moveLeft.d, moveLeft.score - pos.score})
+    //}
+
+    //if moveDown.score < 0 {
+    //    *memo = append(*memo, Memo{moveDown.x, moveDown.y, moveDown.d, moveDown.score})
+
+    //} else {
+    //    *memo = append(*memo, Memo{moveDown.x, moveDown.y, moveDown.d, moveDown.score - pos.score})
+    //}
+
+    //if moveUp.score < 0 {
+    //    *memo = append(*memo, Memo{moveUp.x, moveUp.y, moveUp.d, moveUp.score})
+
+    //} else {
+    //    *memo = append(*memo, Memo{moveUp.x, moveUp.y, moveUp.d, moveUp.score - pos.score})
+    //}
+
+    //if moveRight.score < 0 {
+    //    *memo = append(*memo, Memo{moveRight.x, moveRight.y, moveRight.d, moveRight.score})
+
+    //} else {
+    //    *memo = append(*memo, Memo{moveRight.x, moveRight.y, moveRight.d, moveRight.score - pos.score})
+    //}
+
+    if min == math.MaxInt32 {
+        *memo = append(*memo, Memo{pos.x, pos.y, pos.d, min})
+
+    } else {
+        //*memo = append(*memo, Memo{pos.x, pos.y, pos.d, min - pos.score})
+    }
+
+    
+    // Checked all directions, reset marker.
+    maze[pos.y][pos.x] = '.'
+
+    return min
+
+} // End func.
+
+
+/**
+ *
+ */
+func move(pos Pos, dir Dir, maze [][] byte) Pos {
+
+    var newPos Pos
+    newPos.x = pos.x
+    newPos.y = pos.y
+    newPos.d = pos.d
+    newPos.score = pos.score
+    newPos.end = pos.end
+    newPos.lowestScore = pos.lowestScore
+
+    char := byte('#')
+
+    switch dir {
+        case Left:
+            char = maze[pos.y][pos.x - 1]
+            newPos.x--
+            break
+
+        case Down:
+            char = maze[pos.y + 1][pos.x]
+            newPos.y++
+            break
+
+        case Up:
+            char = maze[pos.y - 1][pos.x]
+            newPos.y--
+            break
+
+        case Right:
+            char = maze[pos.y][pos.x + 1]
+            newPos.x++
+            break
+
+        default:
+            log.Fatal("Direction error.")
+    }
+
+    if newPos.d != dir {
+        newPos.score += 1000
+    }
+
+    newPos.d = dir
+    newPos.score++
+
+    switch char {
+        case 'E':
+            newPos.end = true
+            break
+
+        // Good to move.
+        case '.':
+            maze[newPos.y][newPos.x] = 'x'
+            break
+
+        // Not good to move.
+        case '#':
+            fallthrough
+            //newPos.score = -2
+
+        default:
+            newPos.score = -1
+            break
+    }
+
+    return newPos
+
+} // End func.
+
+

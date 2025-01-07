@@ -1,0 +1,413 @@
+/**
+ ******************************************************************************
+ * Advent of Code 2024 - Day 16 Part 1
+ *
+ * Yeah, it was pretty bad, so I decided to try again with some code clean up.
+ *
+ * file:        solution_old1.go
+ * brief:       Solution for Advent of Code challenge in GoLang.
+ * author:      upsetrobot
+ * date:        05 Jan 2025
+ * copyright:   2025. All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+package main
+
+
+// Imports.
+
+import (
+	//"bufio"
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"strings"
+)
+
+
+// Types.
+
+type Dir int
+
+const (
+    Left    Dir = iota + 1
+    Down
+    Up
+    Right
+)
+
+type Pos struct {
+    x int
+    y int
+    dir Dir
+    score int
+    lowestScore int
+    done bool
+}
+
+
+// Constants.
+// None.
+
+
+// Variables.
+
+var count = 0
+
+
+/**
+ * Main function that finds solution to Advent of Code problem using the
+ * data from the given input file.
+ */
+func main() {
+
+    // Get filename.
+    if len(os.Args) < 2 {
+        fmt.Println("Add filename as argument")
+        return
+    }
+
+    // Get filename.
+    fileName := os.Args[1]
+
+    file, err := os.ReadFile(fileName)
+    if err != nil {
+        log.Fatal("Failed to open file:", err)
+    }
+
+    // Process file.
+    strLines := strings.Split(string(file), "\n")
+    strLines = strLines[:len(strLines) - 1]
+    solution := 0
+    start := Pos{}
+    memo := [] Pos{}
+    var maze [][] byte
+    
+    // Find start and end.
+    for i, line := range strLines {
+        for j, pos := range line {
+            if pos == 'S' {
+                start.x = j
+                start.y = i
+                start.dir = Right
+                start.score = 0
+                start.lowestScore = math.MaxInt32
+                start.done = false
+            }
+        }
+    }
+
+
+    for _, line := range strLines {
+        maze = append(maze, []byte(line))
+    }
+
+    // Find solution.
+    solution, _ = recurseSolveMaze(start, maze, &memo)
+
+    // Print solution.
+    fmt.Println("Day 16 Part 1")
+    fmt.Println("Filename:", fileName)
+    fmt.Println()
+    fmt.Println("Solution:", solution)
+    fmt.Println("Count:", count)
+    fmt.Println()
+
+} // End main.
+
+
+/**
+ * Function to count maze path.
+ *
+ * @param   pos     Current x, y position in maze.
+ * @param   maze    Reference to the character maze.
+ * @param   memo    Reference to position list memo.
+ *
+ * @return  int     Score or max int if not.
+ */
+func recurseSolveMaze(pos Pos, maze [][] byte, memo *[] Pos) (int, bool) {
+
+    // Global count for performance monitoring.
+    count++
+
+    //// Print maze.
+    //for _, line := range maze {
+    //    fmt.Println(string(line))
+    //}
+
+    //fmt.Println()
+    //fmt.Printf("Current x: %d\n", pos.x)
+    //fmt.Printf("Current y: %d\n", pos.y)
+    //fmt.Printf("Current dir: %d\n", pos.dir)
+    //fmt.Printf("Current done: %b\n", pos.done)
+    //fmt.Printf("Current score: %d\n", pos.score)
+    //fmt.Printf("Current lowest score: %d\n", pos.lowestScore)
+    //fmt.Printf("Current count: %d\n", count)
+    //fmt.Println()
+    //fmt.Print("Press enter...")
+    //fmt.Println()
+
+    //reader := bufio.NewReader(os.Stdin)
+
+    // Wait for key press
+    //_, err := reader.ReadString('\n')
+    //if err != nil {
+    //    log.Fatal("Read error.")
+    //}
+
+    // Check memo.
+    for _, m := range *memo {
+        if m.x == pos.x && m.y == pos.y && m.dir == pos.dir {
+            maze[pos.y][pos.x] = '.'
+
+            //fmt.Printf("Min found x: %d\n", m.x)
+            //fmt.Printf("Min found y: %d\n", m.y)
+            //fmt.Printf("Min found dir: %d\n", m.dir)
+            //fmt.Printf("Min found score: %d\n", m.score)
+
+            if m.score == math.MaxInt32 {
+
+                return m.score, true
+
+            } else {
+
+                return pos.score + m.score, true
+            }
+        }
+    }
+
+    scoreList := [] int {}
+    memoItem := Pos {}
+    memoable := true
+
+
+    if pos.dir != Right {
+        newPos := move(pos, Left, maze)
+        test := true
+
+        if !newPos.done && newPos.score > 0 && newPos.score < math.MaxInt32 {
+            if newPos.score < newPos.lowestScore {
+                newPos.score, test = recurseSolveMaze(newPos, maze, memo)
+
+            } else {
+                maze[newPos.y][newPos.x] = '.'
+                newPos.score = -1
+            }
+        }
+
+        if newPos.score > 0 && newPos.score < pos.lowestScore {
+            pos.lowestScore = newPos.score
+        }
+
+        scoreList = append(scoreList, newPos.score)
+        
+        if !test || newPos.score < 0 {
+            memoable = false
+        }
+    }
+
+
+    if pos.dir != Down {
+        newPos := move(pos, Up, maze)
+        test := true
+
+        if !newPos.done && newPos.score > 0 && newPos.score < math.MaxInt32 {
+            if newPos.score < newPos.lowestScore {
+                newPos.score, test = recurseSolveMaze(newPos, maze, memo)
+
+            } else {
+                maze[newPos.y][newPos.x] = '.'
+                newPos.score = -1
+            }
+        }
+
+        if newPos.score > 0 && newPos.score < pos.lowestScore {
+            pos.lowestScore = newPos.score
+        }
+
+        scoreList = append(scoreList, newPos.score)
+        
+        if !test || newPos.score < 0 {
+            memoable = false
+        }
+    }
+
+
+    if pos.dir != Left {
+        newPos := move(pos, Right, maze)
+        test := true
+
+        if !newPos.done && newPos.score > 0 && newPos.score < math.MaxInt32 {
+            if newPos.score < newPos.lowestScore {
+                newPos.score, test = recurseSolveMaze(newPos, maze, memo)
+
+            } else {
+                maze[newPos.y][newPos.x] = '.'
+                newPos.score = -1
+            }
+        }
+
+        if newPos.score > 0 && newPos.score < pos.lowestScore {
+            pos.lowestScore = newPos.score
+        }
+
+        scoreList = append(scoreList, newPos.score)
+        
+        if !test || newPos.score < 0 {
+            memoable = false
+        }
+    }
+
+
+    if pos.dir != Up {
+        newPos := move(pos, Down, maze)
+        test := true
+
+        if !newPos.done && newPos.score > 0 && newPos.score < math.MaxInt32 {
+            if newPos.score < newPos.lowestScore {
+                newPos.score, test = recurseSolveMaze(newPos, maze, memo)
+
+            } else {
+                maze[newPos.y][newPos.x] = '.'
+                newPos.score = -1
+            }
+        }
+
+        if newPos.score > 0 && newPos.score < pos.lowestScore {
+            pos.lowestScore = newPos.score
+        }
+
+        scoreList = append(scoreList, newPos.score)
+        
+        if !test || newPos.score < 0 {
+            memoable = false
+        }
+    }
+
+
+    min := math.MaxInt32 
+
+    for _, i := range scoreList {
+        if i < 0 {
+            i = math.MaxInt32 - 1 
+        }
+        if i < min {
+            min = i
+        }
+    }
+
+    // Here was the problem. Only record if you dont run into yourself.
+    // Probably was one of the problems with my last solution.
+    if memoable {
+        memoItem.x = pos.x
+        memoItem.y = pos.y
+        memoItem.dir = pos.dir
+        memoItem.done = pos.done
+
+        if min == math.MaxInt32 {
+            memoItem.score = min
+
+        } else {
+            memoItem.score = min - pos.score
+        }
+
+        *memo = append(*memo, memoItem)
+
+        //fmt.Printf("Memo x set: %d\n", memoItem.x)
+        //fmt.Printf("Memo y set: %d\n", memoItem.y)
+        //fmt.Printf("Memo dir set: %d\n", memoItem.dir)
+        //fmt.Printf("Memo done set: %d\n", memoItem.done)
+        //fmt.Printf("Memo score set: %d\n", memoItem.score)
+
+    } 
+
+    maze[pos.y][pos.x] = '.'
+
+    return min, memoable
+
+} // End func.
+
+
+/**
+ * Returns the score if you moved there. Calculates based on current direction
+ * and the direction you want to go (accounts for turns). If you can't move in 
+ * that direction, returns `MaxInt32`.
+ * 
+ * @param   pos     Current position.
+ * @param   dir     Direction candidate to move to.
+ * @param   maze    Reference to current maze.
+ * 
+ * @return  Pos     New position with score if move can be made, else new
+ *                  position with score of `MaxInt32`.
+ */
+func move(pos Pos, dir Dir, maze [][] byte) Pos {
+
+    newPos := Pos {}
+    newPos.x = pos.x
+    newPos.y = pos.y
+    newPos.dir = dir
+    newPos.score = pos.score
+    newPos.lowestScore = pos.lowestScore
+    newPos.done = pos.done
+    char := byte('#')
+
+    switch dir {
+        case Left:
+            char = maze[pos.y][pos.x - 1]
+            newPos.x--
+            break
+
+        case Down:
+            char = maze[pos.y + 1][pos.x]
+            newPos.y++
+            break
+
+        case Up:
+            char = maze[pos.y - 1][pos.x]
+            newPos.y--
+            break
+
+        case Right:
+            char = maze[pos.y][pos.x + 1]
+            newPos.x++
+            break
+
+        default:
+            log.Fatal("Direction error.")
+    }
+
+    if pos.dir != newPos.dir {
+        newPos.score += 1000
+    }
+
+    newPos.score++
+
+    switch char {
+        case 'E':
+            newPos.done = true
+            break
+
+        case '.':
+            maze[newPos.y][newPos.x] = 'x'
+            break
+
+        case '#':
+            newPos.score = math.MaxInt32
+            break
+
+        default:
+
+            // Account for behind you. Probably was the problem with my last
+            // solution.
+            newPos.score = -1
+            break
+    }
+
+    return newPos
+
+} // End func.
+
+

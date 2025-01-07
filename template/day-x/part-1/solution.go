@@ -1,14 +1,14 @@
 /**
  ******************************************************************************
- * Advent of Code 2024 - Day 11 Part 1
+ * Advent of Code 2024 - Day x Part 1
  *
  * fff
  *
  * file:        solution.go
  * brief:       Solution for Advent of Code challenge in GoLang.
  * author:      upsetrobot
- * date:        24 Dec 2024
- * copyright:   2024. All rights reserved.
+ * date:        x Jan 2025
+ * copyright:   2025. All rights reserved.
  *
  ******************************************************************************
  */
@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -54,18 +53,18 @@ func main() {
     }
 
     // Process file.
-    // Process file.
     strLines := strings.Split(string(file), "\n")
     strLines = strLines[:len(strLines) - 1]
     solution := 0
     
     for i, line := range strLines {
         for j, pos := range line {
+            if i == j && pos == '.' {break}
         }
     }
 
     // Print solution.
-    fmt.Println("Day 11 Part 1")
+    fmt.Println("Day x Part 1")
     fmt.Println("Filename:", fileName)
     fmt.Println()
     fmt.Println("Solution:", solution)

@@ -1,0 +1,774 @@
+/**
+ ******************************************************************************
+ * Advent of Code 2024 - Day 16 Part 2
+ *
+ * What??? How many tiles... are part of ONE of the best paths... So, uh. I
+ * guess we are supposed to find all "best" paths? Okay, well I can think of a 
+ * couple ways to do this. One would involve using my old exploring algorithm
+ * with a path limit it on it and marking the tiles and then adding them up.
+ * Another would be to go backwards from the end, ... or, uh finding the
+ * distance to all points, then for any that are on a good path that have the
+ * same distance as another... uh... so, mark the selected good path; for each
+ * turn on that path, if another turn (not on the path) has the same value (as 
+ * a source - key point), then it would be part of a new best path... Ugh. 
+ * Like, list all turns in path (a, b, c) and there scores as sources
+ * (distances to end), (obviously they can have identical values); then try
+ * every other turn not on the path, and if its distance to the end... or if 
+ * the distance to it from the source plus the distance from it to the end is
+ * the same, then those two paths are part of one big best path. Jeesh. Okay, 
+ * I think I need to list scores from each turn to end of path, then list all 
+ * turns to end, then for i in list a: for j in list b: if i == j ... and src
+ * to that j == src to i, then mark. 
+ * 
+ * Another idea would be to run it, get score, remove one turn, run it again,
+ * and keep doing that for all turns to find other paths of the same length.
+ * but I think I would rather do the first idea... which may be just as bad
+ * timewise (I don't think I can guess on that).
+ * 
+ * Okay,        L = {p1, p2, p3} on path.
+ *              for p in L: get p(p, E) and add to M
+ *              M = {m1, m2, m3} distances to end from ps
+ *              we want to do the same for src to p. 
+ *              Now, we can put all those in one list X.
+ *              for x in X: for j in ALL turns: if j.s == x.s && j.e == x.e, 
+ *              then mark all tiles. I think that's it. Let's try that.
+ *
+ * Yay, just had a little problem with the sums (sums have to be equal - not 
+ * there parts). Code could use a lot of cleaning up, but maybe later.
+ *
+ * WRONG ANSWER!!! BS!!!... Answer too much... what, how can it be more than 
+ * right... one sec.
+ *
+ * Finally figured out the problem. The sum can share a path. That's a big deal 
+ * for one specific case where paths split and have a bridge before
+ *
+ * file:        solution.go
+ * brief:       Solution for Advent of Code challenge in GoLang.
+ * author:      upsetrobot
+ * date:        05 Jan 2025
+ * copyright:   2025. All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+package main
+
+
+// Imports.
+
+import (
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"strings"
+)
+
+
+// Types.
+
+type Dir int
+
+const (
+    Left    Dir = iota + 1
+    Down
+    Up
+    Right
+)
+
+type Pos struct {
+    x int
+    y int
+    dir Dir
+}
+
+
+// Constants.
+// None.
+
+
+// Variables.
+
+var count = 0
+
+
+/**
+ * Main function that finds solution to Advent of Code problem using the
+ * data from the given input file.
+ */
+func main() {
+
+    // Get filename.
+    if len(os.Args) < 2 {
+        fmt.Println("Add filename as argument")
+        return
+    }
+
+    // Get filename.
+    fileName := os.Args[1]
+
+    file, err := os.ReadFile(fileName)
+    if err != nil {
+        log.Fatal("Failed to open file:", err)
+    }
+
+    // Process file.
+    strLines := strings.Split(string(file), "\n")
+    strLines = strLines[:len(strLines) - 1]
+    solution := 0
+    var maze [][] byte
+    
+    for _, line := range strLines {
+        maze = append(maze, []byte(line))
+    }
+
+    // Some types.
+    type Node struct {
+        x int
+        y int
+        char byte
+        distFromSource int
+        visited bool
+        next *Node
+        prev *Node
+        pathlen int
+    }
+
+    type Edge struct {
+        a *Node
+        b *Node
+        distBetween int
+        dist int
+    }
+
+    var end *Node
+    var start *Node
+    nodeList := make([] *Node, 0)
+    edgeList := make([] Edge, 0)
+
+    // Make node list.
+    for i, line := range maze {
+        for j, pos := range line {
+            switch pos {
+                case 'S':
+                    nodeList = append(nodeList, &Node{j, i, pos, 0, false, nil, nil, 0})
+                    start = nodeList[len(nodeList) - 1]
+                    break
+
+                case 'E':
+                    nodeList = append(nodeList, &Node{j, i, pos, math.MaxInt32, false, nil, nil, 0})
+                    end = nodeList[len(nodeList) - 1]
+                    break
+
+                case '.':
+                    left := maze[i][j - 1]
+                    down := maze[i + 1][j]
+                    up := maze[i - 1][j]
+                    right := maze[i][j + 1]
+                    leftB := false
+                    downB := false
+                    upB := false
+                    rightB := false
+
+                    num := 0
+
+                    if left == '.' {
+                        leftB = true
+                        num++
+                    }
+
+                    if down == '.' {
+                        downB = true
+                        num++
+                    }
+
+                    if up == '.' {
+                        upB = true
+                        num++
+                    }
+
+                    if right == '.' {
+                        rightB = true
+                        num++
+                    }
+
+                    if num == 2 {
+                        if !(leftB && rightB) && !(downB && upB) {
+                            nodeList = append(nodeList, &Node{j, i, pos, math.MaxInt32, false, nil, nil, 0})
+                        }
+                    } else if num > 2 {
+                        nodeList = append(nodeList, &Node{j, i, pos, math.MaxInt32, false, nil, nil, 0})
+                    }
+                    break
+
+                // Does not matter.
+                default:
+                    break
+
+            } // End switch.
+
+        } // End for.
+
+    } // End for.
+
+    // Make edge list.
+    for i := 0; i < len(nodeList); i++ {
+        count++
+
+        srcX := nodeList[i].x
+        srcY := nodeList[i].y
+
+        for j := 0; j < len(nodeList); j++ {
+            if i == j {
+                continue
+            }
+
+            dstX := nodeList[j].x
+            dstY := nodeList[j].y
+            curX := srcX
+            curY := srcY
+            count := 0
+            alreadyAdded := false
+
+            for k := 0; k < len(edgeList); k++ {
+                if edgeList[k].b.x == srcX && edgeList[k].b.y == srcY && edgeList[k].a.x == dstX && edgeList[k].a.y == dstY {
+                    alreadyAdded = true
+                    break
+                }
+            }
+
+            if alreadyAdded {
+                continue
+            }
+            
+            if srcX == dstX {
+                if srcY > dstY {
+                    for curY != dstY {
+                        curY--
+                        count++
+                        char := maze[curY][curX]
+                        
+                        if char == '#' {
+                            count = 0
+                            break
+                        }
+
+                    }
+
+                } else {
+                    for curY != dstY {
+                        curY++
+                        count++
+                        char := maze[curY][curX]
+                        
+                        if char == '#' {
+                            count = 0
+                            break
+                        }
+                    }
+
+                }
+
+            } else if srcY == dstY {
+                if srcX > dstX {
+                    for curX != dstX {
+                        curX--
+                        count++
+                        char := maze[curY][curX]
+                        
+                        if char == '#' {
+                            count = 0
+                            break
+                        }
+                    }
+
+                } else {
+                    for curX != dstX {
+                        curX++
+                        count++
+                        char := maze[curY][curX]
+                        
+                        if char == '#' {
+                            count = 0
+                            break
+                        }
+                    }
+                }
+
+            } // End if.
+
+            if count > 0 {
+                count += 1000
+                edgeList = append(edgeList, Edge{nodeList[i], nodeList[j], count, count - 1000})
+            }
+
+        } // End for.
+
+    } // End for.
+
+    // Now run Dykstras.
+    var currNode *Node
+
+    for {
+        count++ 
+
+        flag := true
+        min := math.MaxInt32
+
+        for i := 0; i < len(nodeList); i++ {
+            if !nodeList[i].visited && nodeList[i].distFromSource < min {
+                min = nodeList[i].distFromSource
+                currNode = nodeList[i]
+                flag = false
+            }
+        }
+
+        if flag {
+            break
+        }
+
+        currNode.visited = true
+
+        for i := 0; i < len(edgeList); i++ {
+            edge := &edgeList[i]
+            dist := currNode.distFromSource + edge.distBetween
+
+            if edge.a == currNode {
+                if !edge.b.visited && dist < edge.b.distFromSource {
+                    edge.b.distFromSource = dist
+                    edge.b.pathlen = edge.dist
+                }
+
+            } else if edge.b == currNode {
+                if !edge.a.visited && dist < edge.a.distFromSource {
+                    edge.a.distFromSource = dist
+                    edge.b.pathlen = edge.dist
+                }
+            }
+        }
+
+    } // End for.
+
+    masterPathLen := end.pathlen
+    masterScore := end.distFromSource
+
+    // Okay, I already have a list of nodes.
+    // They already have a distance from source. Do I need to save these?
+    // Let's make a list of path nodes.
+    // Okay. Now, I think I need a list of all nodes and their distance to 
+    // source AND end. So, uh, we will need a new list.
+    type Tracker struct {
+        node *Node
+        distToSrc int
+        distToEnd int
+        onMainPath bool
+    }
+
+    masterList := [] Tracker {}
+    curr := end
+
+    for {
+        masterList = append(masterList, Tracker{curr, curr.distFromSource, end.distFromSource - curr.distFromSource, true})
+        next := curr
+        min := curr.distFromSource
+
+        if curr.char == 'S' {
+            break
+        }
+
+        for i := 0; i < len(edgeList); i++ {
+            if edgeList[i].a == curr && edgeList[i].b.distFromSource < min {
+                min = edgeList[i].b.distFromSource
+                next = edgeList[i].b
+
+            } else if edgeList[i].b == curr && edgeList[i].a.distFromSource < min {
+                min = edgeList[i].a.distFromSource
+                next = edgeList[i].a
+            }
+        }
+
+        next.next = curr
+        curr.prev = next    // Yeah, confusing, I know, its cuz were going backwards.
+        curr = next
+    }
+
+    // Last problem. I have a turn issue for links for the final step. 
+    // I need edges between nodes that don't account for turns if they can 
+    // continue in the same direction. So, I should copy the edge list and 
+    // find a way to add them... I guess. Actually, I think I need a different 
+    // solution.
+
+    // Maybe I can store link lists for all nodes here.
+    type Link struct {
+        src *Node
+        end *Node
+        links [] *Node
+        linksEnd [] *Node
+        bad int
+    }
+
+    linkList := make([] Link, 0)
+
+    for i := 0; i < len(nodeList); i++ {
+        curr := nodeList[i]
+        link := Link{start, curr, [] *Node {}, [] *Node {}, 0}
+
+        for {
+            link.links = append(link.links, curr)
+
+            if curr.char == 'S' {
+                break
+            }
+
+            next := curr
+            min := curr.distFromSource
+
+            for i := 0; i < len(edgeList); i++ {
+                if edgeList[i].a == curr && edgeList[i].b.distFromSource < min {
+                    min = edgeList[i].b.distFromSource
+                    next = edgeList[i].b
+
+                } else if edgeList[i].b == curr && edgeList[i].a.distFromSource < min {
+                    min = edgeList[i].a.distFromSource
+                    next = edgeList[i].a
+                }
+            }
+
+            curr = next
+        }
+
+        linkList = append(linkList, link)
+    }
+
+    //Mark path.
+    curr = start
+
+    for curr.next != nil {
+        x := curr.x
+        y := curr.y
+        dx := curr.next.x
+        dy := curr.next.y
+
+        if x == dx {
+            if y > dy {
+                for y >= dy {
+                    maze[y][x] = 'o'
+                    y--
+                }
+
+            } else {
+                for y <= dy {
+                    maze[y][x] = 'o'
+                    y++
+                }
+            }
+
+        } else {
+            if x > dx {
+                for x >= dx {
+                    maze[y][x] = 'o'
+                    x--
+                }
+
+            } else {
+                for x <= dx {
+                    maze[y][x] = 'o'
+                    x++
+                }
+            }
+        }
+
+        curr = curr.next
+
+    } // End for.
+
+    pathCount := 1
+
+    // Add rest of nodes.
+    for i := 0; i < len(nodeList); i++ {
+        dontAdd := false
+
+        for _, track := range masterList {
+            if track.node == nodeList[i] {
+                dontAdd = true
+            }
+        }
+
+        if !dontAdd {
+            masterList = append(masterList, Tracker{nodeList[i], nodeList[i].distFromSource, math.MaxInt32, false})
+        }
+    }
+    
+    // Okay. Now, run dykstra's on every node! Sounds like a horrible idea!
+    for i := 0; i < len(masterList); i++ {
+
+        if masterList[i].onMainPath {
+            continue
+        }
+
+        // Reset lists.
+        for j := 0; j < len(nodeList); j++ {
+            nodeList[j].distFromSource = math.MaxInt32
+            nodeList[j].visited = false
+        }
+
+        // Now run Dykstras.
+        currNode = masterList[i].node
+        currNode.distFromSource = 0
+
+        for {
+            count++ 
+
+            flag := true
+            min := math.MaxInt32
+
+            for i := 0; i < len(nodeList); i++ {
+                if !nodeList[i].visited && nodeList[i].distFromSource < min {
+                    min = nodeList[i].distFromSource
+                    currNode = nodeList[i]
+                    flag = false
+                }
+            }
+
+            if flag {
+                break
+            }
+
+            currNode.visited = true
+
+            for i := 0; i < len(edgeList); i++ {
+                edge := &edgeList[i]
+                dist := currNode.distFromSource + edge.distBetween
+
+                if edge.a == currNode {
+                    if !edge.b.visited && dist < edge.b.distFromSource {
+                        edge.b.distFromSource = dist
+                    }
+
+                } else if edge.b == currNode {
+                    if !edge.a.visited && dist < edge.a.distFromSource {
+                        edge.a.distFromSource = dist
+                    }
+                }
+            }
+
+        } // End for.
+
+        // Okay, now add distance to end.
+        masterList[i].distToEnd = end.distFromSource
+
+        // Need to add links to dest.
+        var link *Link 
+
+        for j := 0; j < len(linkList); j++ {
+            if linkList[j].end == masterList[i].node {
+                link = &linkList[j]
+                break
+            }
+        }
+
+        curr = end
+
+        for {
+            link.linksEnd = append(link.linksEnd, curr)
+
+            if curr == masterList[i].node {
+                break
+            }
+
+            next := curr
+            min := curr.distFromSource
+
+            for i := 0; i < len(edgeList); i++ {
+                if edgeList[i].a == curr && edgeList[i].b.distFromSource < min {
+                    min = edgeList[i].b.distFromSource
+                    next = edgeList[i].b
+
+                } else if edgeList[i].b == curr && edgeList[i].a.distFromSource < min {
+                    min = edgeList[i].a.distFromSource
+                    next = edgeList[i].a
+                }
+            }
+
+            curr = next
+        }
+
+    } // End for.
+
+
+    // ****** Fix.
+    for i := 0; i < len(linkList); i++ {
+        fix := 0
+
+        for _, linkSrc := range linkList[i].links {
+            for _, linkEnd := range linkList[i].linksEnd {
+                if linkSrc == linkEnd {
+                    fix++
+                }
+
+                if fix > 1 {
+                    linkList[i].bad = -1
+                    break
+                }
+            }
+        }
+    }
+
+
+    for i := 0; i < len(masterList); i++ {
+
+        // Okay, now for every node on path, if any other node has same dist to 
+        // src and same dist to end, then its path is a path... But we still have 
+        // to figure out how to mark it before destorying list.
+        // Needed to move this till after all are resolved.
+        //for _, track := range masterList {
+        //for _, track := range masterList {
+            //if track.onMainPath {
+
+                // Maybe this will fix the last step issue.
+                //if track.distToSrc == masterList[i].distToSrc && 
+                    //track.distToEnd == masterList[i].distToEnd {
+                //if track.distToEnd + track.distToSrc == masterList[i].distToSrc + masterList[i].distToEnd {
+                if masterList[i].distToEnd + masterList[i].distToSrc == masterScore {
+
+                    pathCount++
+
+                    // Okay, node is a match. Mark path.
+                    // Screw marking the ... damn, I think I have to, to avoid 
+                    // double counting.
+
+                    // Problem is: I can mark from end to curr, but not 
+                    // form curr to src with running dykstra's AGAIN or having 
+                    // a copy of the original.
+                    // Okay, I have links, now.
+                    // So, uh, what were doing? ... Find node as dst in links.
+                    var link *Link 
+
+                    for j := 0; j < len(linkList); j++ {
+                        if linkList[j].end == masterList[i].node {
+                            if linkList[j].bad == 0 {
+                                link = &linkList[j]
+                                break
+                            }
+                        }
+                    }
+
+                    if link != nil {
+
+                        // Now mark path to src.
+                        for i := len(link.links) - 1; i > 0; i-- {
+                            curr := link.links[i]
+                            next := link.links[i - 1]
+                            x := curr.x
+                            y := curr.y
+                            dx := next.x
+                            dy := next.y
+
+                            if x == dx {
+                                if y > dy {
+                                    for y >= dy {
+                                        maze[y][x] = 'o'
+                                        y--
+                                    }
+
+                                } else {
+                                    for y <= dy {
+                                        maze[y][x] = 'o'
+                                        y++
+                                    }
+                                }
+
+                            } else {
+                                if x > dx {
+                                    for x >= dx {
+                                        maze[y][x] = 'o'
+                                        x--
+                                    }
+
+                                } else {
+                                    for x <= dx {
+                                        maze[y][x] = 'o'
+                                        x++
+                                    }
+                                }
+                            }
+
+                        } // End for.
+
+                        // Now mark path to dst.
+                        for i := len(link.linksEnd) - 1; i > 0; i-- {
+                            curr := link.linksEnd[i]
+                            next := link.linksEnd[i - 1]
+                            x := curr.x
+                            y := curr.y
+                            dx := next.x
+                            dy := next.y
+
+                            if x == dx {
+                                if y > dy {
+                                    for y >= dy {
+                                        maze[y][x] = 'o'
+                                        y--
+                                    }
+
+                                } else {
+                                    for y <= dy {
+                                        maze[y][x] = 'o'
+                                        y++
+                                    }
+                                }
+
+                            } else {
+                                if x > dx {
+                                    for x >= dx {
+                                        maze[y][x] = 'o'
+                                        x--
+                                    }
+
+                                } else {
+                                    for x <= dx {
+                                        maze[y][x] = 'o'
+                                        x++
+                                    }
+                                }
+                            }
+
+                        } // End for.
+
+                    } // End if.
+
+                } // End if.
+
+            //} // End if.
+
+        //} // End for.
+
+    } // End for.
+
+    // Print maze and find solution.
+    for _, line := range maze {
+        fmt.Println(string(line))
+
+        for _, pos := range line {
+            if pos == 'o' {
+                solution++
+            }
+        }
+    }
+    fmt.Println()
+    
+    // Print solution.
+    fmt.Println("Day 16 Part 2")
+    fmt.Println("Filename:", fileName)
+    fmt.Println()
+    fmt.Println("Solution:", solution)
+    fmt.Println("Count:", count)
+    fmt.Println("Master Path Length:", masterPathLen)
+    fmt.Println("Master Score:", masterScore)
+    fmt.Println("Path Count:", pathCount)
+    fmt.Println()
+
+} // End main.
+
+
+
