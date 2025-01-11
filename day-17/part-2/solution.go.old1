@@ -1,0 +1,414 @@
+/**
+ ******************************************************************************
+ * Advent of Code 2024 - Day 17 Part 2
+ *
+ * Seems like a little computing emulation going on here. We can just create a
+ * state and functions and run the program. Sounds easy.
+ *
+ *      Literal operands:   values 0 to 7 (3-bit) (I have no idea how to do
+ *                          3-bit in go, but I can just probably use ints)
+ *      Combo operands:     0 - 3 are literal, 4 rA, 5 rB, 6 rC.
+ *      `adv` (0):          rA = rA / 2**(combo) (integral division).
+ *      `bxl` (1):          rB = b ^ (literal).
+ *      `bst` (2):          rB = (combo) % 8.
+ *      `jnz` (3):          if rA == 0, nop; else jmp literal.
+ *      `bxc` (4):          rB = rB ^ rC; operand is ignored.
+ *      `out` (5):          print combo % 8. Output separated by commas.
+ *      `bdv` (6):          rB = rA / 2^(combo) (integral division).
+ *      `cdv` (7):          rC = rA / 2^(combo) (integral division).
+ *
+ * Worked right away. Nice.
+ *
+ * For part 2, we have to find a value for register A that produces an exact 
+ * copy of the program itself. So, do we have options here? Do we have to 
+ * try every value. The brute-force approach would still be quick I think if 
+ * under 100 million or whatever. A better approach would be to check as the 
+ * output is being done and to move on if an invalid value is found. We could 
+ * try to "compile" the program into one statement which should optimize to 
+ * run faster (less or even no jumps - or write in assembly, but I doing go, 
+ * so). I imagine the program is just a giant loop. Maybe we can iterate the 
+ * loop once and then find the pattern and reduce the operation or even 
+ * reduce it mathematically. But it might not work and we should find a 
+ * solution that works on arbitrary input. I really don't think there are gonna 
+ * be an problems with just doing an optimized brute force approach. Maybe
+ * there is a reverse approach? ... I don't think so, I'm gonna just do the 
+ * naive approach with breaking when the out doesn't match (optimized brute-
+ * force).
+ *
+ * My solution is slow. Only like 1.7 billion per minute. Maybe, we can use
+ * memos or something to save register states and then if they were already
+ * false, then ... or just for one step at a time, use the register state that
+ * was saved and use that to output the next number. Like, maybe memo from
+ * state at output, then check memo at beginning of each op. Then if op is in
+ * memo, it would print output and set state. But I feel like that could take a
+ * long time as well without some sort of data structure algorithm.
+ * ... Actually, I think it would have to be all the steps, save starting state 
+ * and save resulting output. Then, if I get that state again, I can append the
+ * output string to the current output. That makes sense, so that's what I am
+ * going to do. Do, do this, I'm gonna have to lose the negative result
+ * optimization... sad.
+ * 
+ * Slower I think. Since the numbers are lower, I'm gonna try a table to store
+ * the results to achieve constant time on checks.... No, no way. I'm reverting
+ * to my older solution. Now, I need to find another opportunity to save time.
+ *
+ * I decided to print the first 1000 results. There is definitely some patterns
+ * and I think, in this case, it has to do with division. I also wonder if the
+ * the function calls cost alot and if the power function costs alot.
+ * Obviously, the loops of the program are the biggest problem. There might be
+ * some math tricks to help.
+ *
+ * Okay, getting rid of function calls did not help much... predictable.
+ * Experiments show that different programs create different patterns, but one
+ * thing that seems consistent is what I said eariler about repeating 
+ * substrings happening. Which means that the memo thing is still an idea, I
+ * probably just did it in a bad way or something. I'm gonna try again.
+ *
+ * Not working again after switching to a recursive algorithm (too slow). Maybe
+ * I can combine the optimization from earlier with memos?
+ *
+ * Wow, I switched to a binary search tree idea and it still takes too long. I
+ * should definitely think of a different approach. My best timing is with the
+ * stopping on bad things, so how can I improve... Fuck it, I'm just gonna let
+ * run and accept a slow answer as an answer... Oh and let me make sure strings
+ * that are too long are stopped right away as well... oh, I already did that.
+ *
+ * Running 15 minutes and still no answer. Maybe I should record result after
+ * all done and only check every machine cycle. Technically, then, only
+ * register A would matter as it is the only one set, but I am trying to make \
+ * not matter. 
+ *
+ * I got it going near twice as fast by clean up the code, getting rid of 
+ * memos, swapping power function out, and puting everything in one function.
+ * But it still needs to be faster.
+ *
+ * Yeah, I definitely lost this one. I am surprised that I cannot think of any
+ * ways to speed this up. Memoization seems like the intended answer, but it 
+ * was bad no matter how I did it or when. May just substrings of the answer, I
+ * do not know if I actually tried that. I will have to look at this again
+ * later. 100 million per second doesn't seem like enough. There must be
+ * something else that can be done. I did like this challenge, though.
+ *
+ * Okay, I don't think I can make it simpler. Of course, another solution is 
+ * needed. I found a correlation between the length of the program (at least in
+ * the input case) and the initial register A value that seems to be related to
+ * powers of two. In other words, it is a really big number. the first 8 case
+ * take 8 steps. The next 64-8 take 16 steps; the next 512-64 take 24 steps...
+ * So, n / 8 / 8... or something. So < 4096 (512 * 8) is gonna take 32 steps.
+ * The same is true for the number of digits in the program.
+ * 
+ *      n = 8 ** digits, where n is register A for the first option with that
+ *      number of digits. In other words, my program has 16 digits, and 8 ** 16 
+ *      = 281 474 976 710 656 which is the minimum answer candidate. Yuck.
+ * 
+ * The same is true for the example. The example does some binary counting with 
+ * 8 being the same answer, then incrementing the left digit. The increment 
+ * continues. The input.txt does not count directly. But, similar to the other,
+ * the last digit does not change till double the last increment (which makes
+ * sense as that has to happen 8 times to get to the next digit). This would
+ * indicate that our answer can be up to 8 times the GIANT number.
+ * 
+ * If you start at the lowest possible number (giant number) and the last digit
+ * is not correct, you can add the giant number to your current postion and
+ * check again and repeat till it is. Then, you can do the same by adding
+ * multiples of one less power of 8 to get the next digit. I'm gonna start
+ * another file.
+ *
+ * file:        solution.go
+ * brief:       Solution for Advent of Code challenge in GoLang.
+ * author:      upsetrobot
+ * date:        09 Jan 2025
+ * copyright:   2025. All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+package main
+
+// Imports.
+import (
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+)
+
+
+// Types.
+
+type State struct {
+    a int
+    b int
+    c int
+    ip int
+    prog [] int
+    out [] int
+    i int
+    len int
+}
+
+
+// Constants.
+// None.
+
+
+/**
+ * Main function that finds solution to Advent of Code problem using the
+ * data from the given input file.
+ */
+func main() {
+
+    // Get filename.
+    if len(os.Args) < 2 {
+        fmt.Println("Add filename as argument")
+        return
+    }
+
+    // Get filename.
+    fileName := os.Args[1]
+
+    file, err := os.ReadFile(fileName)
+    if err != nil {
+        log.Fatal("Failed to open file:", err)
+    }
+
+    // Process file.
+    strLines := strings.Split(string(file), "\n")
+    strLines = strLines[:len(strLines) - 1]
+    words := [] string {}
+    state := State {}
+    b := 0
+    c := 0
+    
+    for _, line := range strLines {
+        words = strings.Split(line, " ")
+
+        if len(words) != 0 {
+            if words[0] == "Register" {
+                switch words[1] {
+                    case "A:":
+                        state.a, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+                        break
+
+                    case "B:":
+                        state.b, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+                        
+                        b = state.b
+                        break
+                        
+                    case "C:":
+                        state.c, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+
+                        c = state.c
+                        break
+
+                    default:
+                        log.Fatal("Parsing error.")
+                }
+
+            } else if words[0] == "Program:" {
+                words = strings.Split(words[1], ",")
+
+                for _, word := range words {
+                    num, err := strconv.Atoi(word)
+                    if err != nil {
+                        log.Fatal("Program conversion error.")
+                    }
+
+                    state.prog = append(state.prog, num)
+                }
+
+            } // End if.
+
+        } // End if.
+
+    } // End for.
+
+    // Run program.
+    solution := 0
+
+    // Part 2.
+    state.len = len(state.prog)
+    start := state
+
+    // Brute force.
+    for i := 0; i < 10000; i++ {
+        if state.i == state.len {
+            break
+        }
+
+        state.a = i
+        state.b = b
+        state.c = c
+        state.ip = 0
+        state.i = 0
+        state.out = [] int {}
+        start = state
+
+        solution = i
+        
+        if i > 0 && i % 10000000 == 0 {
+            fmt.Println(i)
+        }
+
+        count := 0
+
+        for {
+            if state.ip == state.len { 
+                fmt.Println(start.a, count, "     ", state.out)
+                break
+            }
+
+            count++
+
+            literal := state.prog[state.ip + 1]
+
+            switch state.prog[state.ip] {
+                case 0:
+                    switch literal {
+                        case 4:
+                            literal = state.a
+                            break
+
+                        case 5:
+                            literal = state.b
+                            break
+
+                        case 6:
+                            literal = state.c
+                            break
+                    }
+
+                    state.a = state.a / (1 << literal)
+                    state.ip += 2
+                    break;
+
+                case 1:
+                    state.b = state.b ^ literal
+                    state.ip += 2
+                    break
+
+                case 2:
+                    switch literal {
+                        case 4:
+                            literal = state.a
+                            break
+
+                        case 5:
+                            literal = state.b
+                            break
+
+                        case 6:
+                            literal = state.c
+                            break
+                    }
+
+                    state.b = literal % 8
+                    state.ip += 2
+                    break
+
+                case 3:
+                    if state.a != 0 {
+                        state.ip = state.prog[state.ip + 1]
+                        break
+                    }
+
+                    state.ip += 2
+                    break
+
+                case 4:
+                    state.b = state.b ^ state.c
+                    state.ip += 2
+                    break
+
+                case 5:
+                    switch literal {
+                        case 4:
+                            literal = state.a
+                            break
+
+                        case 5:
+                            literal = state.b
+                            break
+
+                        case 6:
+                            literal = state.c
+                            break
+                    }
+
+                    literal = literal % 8
+                    state.out = append(state.out, literal)
+
+                    //if state.prog[state.i] != literal {
+                    //    state.ip = state.len
+                    //    break
+                    //}
+
+                    state.ip += 2
+                    state.i++
+                    break
+
+                case 6:
+                    switch literal {
+                        case 4:
+                            literal = state.a
+                            break
+
+                        case 5:
+                            literal = state.b
+                            break
+
+                        case 6:
+                            literal = state.c
+                            break
+                    }
+
+                    state.b = state.a / (1 << literal)
+                    state.ip += 2
+                    break
+
+                case 7:
+                    switch literal {
+                        case 4:
+                            literal = state.a
+                            break
+
+                        case 5:
+                            literal = state.b
+                            break
+
+                        case 6:
+                            literal = state.c
+                            break
+                    }
+
+                    state.c = state.a / (1 << literal)
+                    state.ip += 2
+                    break
+                
+            } // End switch.
+
+        } // End for.
+
+    } // End for.
+
+    // Print solution.
+    fmt.Println("Day 17 Part 2")
+    fmt.Println("Filename:", fileName)
+    fmt.Println()
+    fmt.Println("Solution:", solution)
+    fmt.Println()
+
+} // End main.
+
+

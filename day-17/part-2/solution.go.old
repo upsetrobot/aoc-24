@@ -1,0 +1,606 @@
+/**
+ ******************************************************************************
+ * Advent of Code 2024 - Day 17 Part 2
+ *
+ * Seems like a little computing emulation going on here. We can just create a
+ * state and functions and run the program. Sounds easy.
+ *
+ *      Literal operands:   values 0 to 7 (3-bit) (I have no idea how to do
+ *                          3-bit in go, but I can just probably use ints)
+ *      Combo operands:     0 - 3 are literal, 4 rA, 5 rB, 6 rC.
+ *      `adv` (0):          rA = rA / 2**(combo) (integral division).
+ *      `bxl` (1):          rB = b ^ (literal).
+ *      `bst` (2):          rB = (combo) % 8.
+ *      `jnz` (3):          if rA == 0, nop; else jmp literal.
+ *      `bxc` (4):          rB = rB ^ rC; operand is ignored.
+ *      `out` (5):          print combo % 8. Output separated by commas.
+ *      `bdv` (6):          rB = rA / 2^(combo) (integral division).
+ *      `cdv` (7):          rC = rA / 2^(combo) (integral division).
+ *
+ * Worked right away. Nice.
+ *
+ * For part 2, we have to find a value for register A that produces an exact 
+ * copy of the program itself. So, do we have options here? Do we have to 
+ * try every value. The brute-force approach would still be quick I think if 
+ * under 100 million or whatever. A better approach would be to check as the 
+ * output is being done and to move on if an invalid value is found. We could 
+ * try to "compile" the program into one statement which should optimize to 
+ * run faster (less or even no jumps - or write in assembly, but I doing go, 
+ * so). I imagine the program is just a giant loop. Maybe we can iterate the 
+ * loop once and then find the pattern and reduce the operation or even 
+ * reduce it mathematically. But it might not work and we should find a 
+ * solution that works on arbitrary input. I really don't think there are gonna 
+ * be an problems with just doing an optimized brute force approach. Maybe
+ * there is a reverse approach? ... I don't think so, I'm gonna just do the 
+ * naive approach with breaking when the out doesn't match (optimized brute-
+ * force).
+ *
+ * My solution is slow. Only like 1.7 billion per minute. Maybe, we can use
+ * memos or something to save register states and then if they were already
+ * false, then ... or just for one step at a time, use the register state that
+ * was saved and use that to output the next number. Like, maybe memo from
+ * state at output, then check memo at beginning of each op. Then if op is in
+ * memo, it would print output and set state. But I feel like that could take a
+ * long time as well without some sort of data structure algorithm.
+ * ... Actually, I think it would have to be all the steps, save starting state 
+ * and save resulting output. Then, if I get that state again, I can append the
+ * output string to the current output. That makes sense, so that's what I am
+ * going to do. Do, do this, I'm gonna have to lose the negative result
+ * optimization... sad.
+ * 
+ * Slower I think. Since the numbers are lower, I'm gonna try a table to store
+ * the results to achieve constant time on checks.... No, no way. I'm reverting
+ * to my older solution. Now, I need to find another opportunity to save time.
+ *
+ * I decided to print the first 1000 results. There is definitely some patterns
+ * and I think, in this case, it has to do with division. I also wonder if the
+ * the function calls cost alot and if the power function costs alot.
+ * Obviously, the loops of the program are the biggest problem. There might be
+ * some math tricks to help.
+ *
+ * Okay, getting rid of function calls did not help much... predictable.
+ * Experiments show that different programs create different patterns, but one
+ * thing that seems consistent is what I said eariler about repeating 
+ * substrings happening. Which means that the memo thing is still an idea, I
+ * probably just did it in a bad way or something. I'm gonna try again.
+ *
+ * Not working again after switching to a recursive algorithm (too slow). Maybe
+ * I can combine the optimization from earlier with memos?
+ *
+ * Wow, I switched to a binary search tree idea and it still takes too long. I
+ * should definitely think of a different approach. My best timing is with the
+ * stopping on bad things, so how can I improve... Fuck it, I'm just gonna let
+ * run and accept a slow answer as an answer... Oh and let me make sure strings
+ * that are too long are stopped right away as well... oh, I already did that.
+ *
+ * Running 15 minutes and still no answer. Maybe I should record result after
+ * all done and only check every machine cycle. Technically, then, only
+ * register A would matter as it is the only one set, but I am trying to make \
+ * not matter. 
+ *
+ * file:        solution.go
+ * brief:       Solution for Advent of Code challenge in GoLang.
+ * author:      upsetrobot
+ * date:        09 Jan 2025
+ * copyright:   2025. All rights reserved.
+ *
+ ******************************************************************************
+ */
+
+package main
+
+// Imports.
+import (
+	"fmt"
+	"log"
+	//"math"
+	"os"
+	"strconv"
+	"strings"
+)
+
+// Types.
+
+type State struct {
+    a int
+    b int
+    c int
+    ip int
+    prog [] int
+    out string
+    i int
+    len int
+    hlt bool
+}
+
+
+type BST struct {
+    root *Node
+}
+
+
+type Node struct {
+    v int
+    result string
+    left *Node
+    right *Node
+    tree *Node
+}
+
+
+// Constants.
+// None.
+
+
+/**
+ * Main function that finds solution to Advent of Code problem using the
+ * data from the given input file.
+ */
+func main() {
+
+    // Get filename.
+    if len(os.Args) < 2 {
+        fmt.Println("Add filename as argument")
+        return
+    }
+
+    // Get filename.
+    fileName := os.Args[1]
+
+    file, err := os.ReadFile(fileName)
+    if err != nil {
+        log.Fatal("Failed to open file:", err)
+    }
+
+    // Process file.
+    strLines := strings.Split(string(file), "\n")
+    strLines = strLines[:len(strLines) - 1]
+    words := [] string {}
+    state := State {}
+    b := 0
+    c := 0
+    
+    for _, line := range strLines {
+        words = strings.Split(line, " ")
+
+        if len(words) != 0 {
+            if words[0] == "Register" {
+                switch words[1] {
+                    case "A:":
+                        state.a, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+                        break
+
+                    case "B:":
+                        state.b, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+                        
+                        b = state.b
+                        break
+                        
+                    case "C:":
+                        state.c, err = strconv.Atoi(words[2])
+                        if err != nil {
+                            log.Fatal("Conversion error.")
+                        }
+
+                        c = state.c
+                        break
+
+                    default:
+                        log.Fatal("Parsing error.")
+                }
+
+            } else if words[0] == "Program:" {
+                words = strings.Split(words[1], ",")
+
+                for _, word := range words {
+                    num, err := strconv.Atoi(word)
+                    if err != nil {
+                        log.Fatal("Program conversion error.")
+                    }
+
+                    state.prog = append(state.prog, num)
+                }
+
+            } // End if.
+
+        } // End if.
+
+    } // End for.
+
+    // Run program.
+    solution := 0
+
+    // Part 2.
+    state.len = len(state.prog)
+    bst := new(BST)
+
+    fmt.Print("Solving (dot per 100,000; star per 10 million): ")
+
+    // Brute force.
+    for i := 0; /*i < 100*/; i++ {
+        state.a = i
+        state.b = b
+        state.c = c
+        state.ip = 0
+        state.i = 0
+        state.out = ""
+        state.hlt = false
+        //startState := state
+
+        solution = i
+        
+        //if solution > 0 && solution % 100000 == 0 {
+        //    fmt.Print(".")
+        //}
+
+        if solution > 0 && solution % 10000000 == 0 {
+            fmt.Print("*")
+        }
+
+        runState(&state, bst)
+
+        //node := bst.root.search(startState.a)
+        //if node == nil {
+        //    node = bst.insert(startState.a, state.out)
+
+        //    fmt.Println("Recording memo: ", node)
+
+        //}
+
+        //fmt.Println("Checking final state: ", state.out)
+        //fmt.Println()
+
+        if state.i == state.len {
+            break
+        }
+
+    } // End for.
+
+    // Print solution.
+    fmt.Println("Day 17 Part 2")
+    fmt.Println("Filename:", fileName)
+    fmt.Println()
+    fmt.Println("Solution:", solution)
+    fmt.Println()
+
+} // End main.
+
+
+//func (tree *BST) insert(a int, b int, c int, ip int, result string) *Node {
+func (tree *BST) insert(a int, result string) *Node {
+
+    //fmt.Println("Recording memo: ", a, b, c, ip, "\"", result, "\"")
+
+    node := tree.root.insert(a)
+    //var prev *Node
+
+    if tree.root == nil {
+        tree.root = node
+    }
+
+    //prev = node
+    //node = node.tree.insert(b)
+
+    //if prev.tree == nil {
+    //    prev.tree = node
+    //}
+
+    //prev = node
+    //node = node.tree.insert(c)
+
+    //if prev.tree == nil {
+    //    prev.tree = node
+    //}
+
+    //prev = node
+    //node = node.tree.insert(ip)
+
+    //if prev.tree == nil {
+    //    prev.tree = node
+    //}
+
+    node.result = result
+    
+    return node
+}
+
+
+func (root *Node) insert(value int) *Node {
+    if root == nil {
+        node := new(Node)
+        node.v = value
+        root = node
+
+        return root
+    }
+
+    node := root
+    
+    if value < node.v {
+        if node.left == nil {
+            node = new(Node)
+            node.v = value
+            root.left = node
+
+        } else {
+            node = root.left.insert(value)
+        }
+
+    } else if value > root.v {
+        if node.right == nil {
+            node = new(Node)
+            node.v = value
+            root.right = node
+
+        } else {
+            node = root.right.insert(value)
+        }
+    }
+    
+    return node
+
+} // End insert.
+
+
+func (tree *BST) search(a int, b int, c int, ip int) *Node {
+
+    node := tree.root.search(a)
+
+    if node != nil {
+        node = node.tree.search(b)
+
+        if node != nil {
+            node = node.tree.search(c)
+
+            if node != nil {
+                node = node.tree.search(ip)
+            }
+        }
+    }
+
+    return node
+
+} // End search.
+
+
+func (n *Node) search(value int) *Node {
+    if n == nil {
+
+        return nil
+    }
+
+    if value == n.v {
+
+        return n
+
+    } else if value < n.v {
+
+        return n.left.search(value)
+
+    } else {
+
+        return n.right.search(value)
+    }
+
+} // End search.
+
+
+func runState(state *State, bst *BST) {
+
+    //fmt.Println("State: ", state)
+
+    // Check bad state memos.
+    //node := bst.search(state.a, state.b, state.c, state.ip)
+    //node := bst.root.search(state.a)
+    //if node != nil {
+
+    //    fmt.Println("Found memo: ", node)
+
+    //    if state.out == "" {
+    //        state.out = node.result
+
+    //    } else {
+    //        state.out = state.out[:] + "," + node.result
+    //    }
+
+    //    //fmt.Println("Returning new state: ", state)
+    //    //fmt.Println()
+
+    //    return
+    //}
+
+    literal := state.prog[state.ip + 1]
+
+    switch state.prog[state.ip] {
+        case 0:
+            switch literal {
+                case 4:
+                    literal = state.a
+                    break
+
+                case 5:
+                    literal = state.b
+                    break
+
+                case 6:
+                    literal = state.c
+                    break
+
+                default:
+            }
+
+            //state.a = state.a / int(math.Pow(2, float64(literal)))
+            state.a = state.a / (1 << literal)
+            state.ip += 2
+            break;
+
+        case 1:
+            state.b = state.b ^ literal
+            state.ip += 2
+            break
+
+        case 2:
+            switch literal {
+                case 4:
+                    literal = state.a
+                    break
+
+                case 5:
+                    literal = state.b
+                    break
+
+                case 6:
+                    literal = state.c
+                    break
+
+                default:
+            }
+
+            state.b = literal % 8
+            state.ip += 2
+            break
+
+        case 3:
+            if state.a != 0 {
+                state.ip = state.prog[state.ip + 1]
+
+            } else {
+                state.ip += 2
+            }
+
+            break
+
+        case 4:
+            state.b = state.b ^ state.c
+            state.ip += 2
+            break
+
+        case 5:
+            switch literal {
+                case 4:
+                    literal = state.a
+                    break
+
+                case 5:
+                    literal = state.b
+                    break
+
+                case 6:
+                    literal = state.c
+                    break
+
+                default:
+            }
+
+            literal = literal % 8
+
+            if state.prog[state.i] != literal {
+
+                //fmt.Println("Bad result found: ", literal, "state: ", state.out)
+
+                // Memo bad state.
+                //bst.insert(startState.a, startState.b, startState.c, startState.ip, state.out)
+                //state.ip = state.len
+
+                //fmt.Println("Memo added: ", node)
+                //fmt.Println()
+
+                return
+            }
+
+            if state.out == "" {
+                state.out = strconv.Itoa(literal) // Only 9 digits; could optimize.
+
+            } else {
+                state.out = state.out[:] + "," + strconv.Itoa(literal)
+            }
+
+            state.ip += 2
+            state.i++
+
+            //bst.insert(startState.a, startState.b, startState.c, startState.ip, state.out)
+
+            break
+
+        case 6:
+            switch literal {
+                case 4:
+                    literal = state.a
+                    break
+
+                case 5:
+                    literal = state.b
+                    break
+
+                case 6:
+                    literal = state.c
+                    break
+
+                default:
+            }
+
+            //state.b = state.a / int(math.Pow(2, float64(literal)))
+            state.b = state.a / (1 << literal)
+            state.ip += 2
+            break
+
+        case 7:
+            switch literal {
+                case 4:
+                    literal = state.a
+                    break
+
+                case 5:
+                    literal = state.b
+                    break
+
+                case 6:
+                    literal = state.c
+                    break
+
+                default:
+            }
+
+            //state.c = state.a / int(math.Pow(2, float64(literal)))
+            state.c = state.a / (1 << literal)
+            state.ip += 2
+            break
+
+        default:
+            log.Fatal("Invalid opcode.")
+        
+    } // End switch.
+
+    // If done, return result.
+    if state.ip >= state.len { 
+
+        //fmt.Println("Finished. Returning State output: ", state.out)
+        //fmt.Println()
+
+        return
+    }
+
+    //fmt.Println()
+
+    runState(state, bst)
+
+    //if state.ip >= state.len {
+
+    //    return
+    //}
+
+    //node = bst.insert(startState.a, startState.b, startState.c, startState.ip, state.out)
+
+    //fmt.Println("Returning State output: ", state.out)
+    //fmt.Println()
+
+} // End runState.
+
+
+
